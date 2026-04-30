@@ -31,8 +31,6 @@ It runs on top of any game without injecting into it.
 5. Aggregate into 4 frequency bands: ROAR (20–200 Hz), STEPS (200–2000 Hz), SHOTS (2–5 kHz), CLINK (5–10 kHz)
 6. Render as colored dots on a transparent always-on-top window using `egui` + `wgpu`
 
-For deeper details see [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ## Anti-cheat compatibility
 
 The program only listens to the system audio output (the same audio your speakers receive). It does **not**:
@@ -57,7 +55,7 @@ A release binary will appear in [Releases](../../releases) once the project stab
 You need [Rust](https://rustup.rs/) installed (1.75 or newer recommended). Then:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sound_dir
+git clone https://github.com/Japour/sound_dir
 cd sound_dir
 cargo build --release
 ```
@@ -69,8 +67,6 @@ The binary will be at `target/release/sound_dir.exe` (Windows) or `target/releas
 | OS | Status | Notes |
 |---|---|---|
 | Windows 10/11 | ✅ Tested | Primary target |
-| macOS | ⚠️ Untested | Compiles. Audio loopback needs [BlackHole](https://github.com/ExistentialAudio/BlackHole) or similar |
-| Linux | ⚠️ Untested | Compiles. Audio loopback needs PulseAudio monitor source |
 
 Currently I only develop and test on Windows. Help porting to macOS / Linux is welcome.
 
