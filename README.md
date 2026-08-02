@@ -1,58 +1,87 @@
 # sound_dir
 
-A directional sound visualizer for deaf and hard-of-hearing gamers, built in Rust.
+Визуализация направления звука для глухих и слабослышащих игроков.
+Программа слушает звук системы и показывает поверх игры полоску, на которой
+цветные точки уезжают влево или вправо в зависимости от того, откуда пришел
+звук.
 
-I'm deaf with a cochlear implant on my left ear only. In games like PUBG, where survival depends on knowing which direction shots and footsteps come from, I'm at a permanent disadvantage — I hear sounds, but my brain can't compute direction from a single ear.
+![Работа оверлея в PUBG](assets/demo.gif)
 
-This program watches the system audio output, analyzes left/right balance per frequency band, and shows colored dots on a small strip at the top of the screen. Each dot drifts left when sound comes from the left, right when it comes from the right. Different colors for different sound types: blue for engines, green for footsteps, orange for gunshots, yellow for metallic clicks (grenade pins, glass).
+*Полоска сверху экрана. Точка ушла вправо, значит звук справа. Цвет
+показывает тип звука.*
 
-It runs on top of any game without injecting into it.
+## Зачем это сделано
 
-## Screenshot
+Я глухой, слышу одним ухом через кохлеарный имплант. Второе не слышит
+совсем.
 
-*Coming soon — running screenshots from PUBG / CS / Apex.*
+Направление звука мозг определяет по разнице между двумя ушами: до какого
+дошло раньше и до какого громче. С одним ухом этой разницы нет. Я слышу,
+что выстрел был, но откуда именно, понять физически не могу.
 
-## Features
+В играх вроде PUBG это решает исход: шаги за спиной или сбоку слышно
+задолго до того, как противника видно. Слуховой аппарат тут не помогает,
+он делает звук громче, а не направленным.
 
-- **Listens to system audio output** via WASAPI loopback, no game injection
-- **Per-band direction estimation** weighted by [PCEN](https://arxiv.org/abs/1607.05666) energy — engine rumble doesn't drown out the gunshot
-- **Configurable overlay** — drag to move, drag to resize, opacity / ball size / response speed all adjustable from the settings panel
-- **System tray** — clean quit, edit mode, reset to defaults
-- **Persistent settings** — saved to `%APPDATA%/sound_dir/settings.json`
-- **Minimal CPU and RAM** — ~1–3 % CPU, ~50 MB RAM, ~9 MB binary
-- **Low latency** — ~50–80 ms end-to-end from sound to dot moving
+Раз ухом это не решается, я перевел информацию в зрение. Направление стало
+видно, а не слышно.
 
-## How it works (one minute)
+## Что показывает
 
-1. Capture system audio via WASAPI loopback (the same way OBS or Discord do)
-2. FFT — 1024 samples at 48 kHz, hop of 256 samples (~190 Hz update rate)
-3. PCEN per channel and per bin — automatically suppresses stationary noise (engines, ambient music) and amplifies transients (gunshots, footsteps)
-4. Per-bin direction estimate weighted by PCEN energy. Stationary background contributes ~zero weight, transient events dominate the direction
-5. Aggregate into 4 frequency bands: ROAR (20–200 Hz), STEPS (200–2000 Hz), SHOTS (2–5 kHz), CLINK (5–10 kHz)
-6. Render as colored dots on a transparent always-on-top window using `egui` + `wgpu`
+Четыре полосы частот, каждая своим цветом:
 
-## Anti-cheat compatibility
+| Цвет | Полоса | Частоты | Что это обычно |
+|---|---|---|---|
+| синий | ROAR | 20-200 Гц | техника, взрывы, гул |
+| зеленый | STEPS | 200-2000 Гц | шаги, голоса |
+| оранжевый | SHOTS | 2-5 кГц | выстрелы |
+| желтый | CLINK | 5-10 кГц | металл, стекло, чека гранаты |
 
-The program only listens to the system audio output (the same audio your speakers receive). It does **not**:
+![Настройки](assets/settings.jpg)
 
-- Read game memory
-- Inject DLLs into the game
-- Hook DirectX / Vulkan inside the game
+*Режим редактирования: размер полоски, прозрачность, размер точек, скорость
+реакции и включение отдельных полос.*
 
-It behaves the same way as Discord overlay, OBS, or NVIDIA ShadowPlay — listens to your audio, draws on your screen. BattlEye / EAC / Vanguard don't flag this.
+## Как работает
+
+1. Захват звука системы через WASAPI loopback, тем же способом, каким
+   пишут OBS и Discord
+2. FFT: 1024 отсчета на 48 кГц, шаг 256 отсчетов, около 190 обновлений в
+   секунду
+3. PCEN отдельно по каналам и частотам. Он давит постоянный фон и
+   вытаскивает резкие события, поэтому гул мотора не заглушает выстрел
+4. Оценка направления по каждой частоте с весом по энергии PCEN. Фон весит
+   почти ноль, событие перевешивает
+5. Сведение в четыре полосы и отрисовка точек в прозрачном окне поверх
+   игры через egui и wgpu
+
+Задержка от звука до движения точки около 50-80 мс. Потребление 1-3 %
+процессора и примерно 50 МБ памяти.
+
+## Про античиты
+
+Программа не трогает игру. Она слушает тот же звук, который идет в
+наушники, и рисует свое окно поверх экрана. Она **не** читает память игры,
+**не** внедряет DLL и **не** перехватывает DirectX или Vulkan внутри
+процесса.
+
+С точки зрения системы это то же самое, что оверлей Discord, OBS или
+NVIDIA ShadowPlay. BattlEye, EAC и Vanguard такое не трогают.
+
+Именно поэтому подход выбран такой: любой способ, который лезет внутрь
+игры, дал бы больше данных, но был бы читом и поводом для бана. Слушать
+общий вывод звука это ровно та же информация, которая и так доступна
+слышащему игроку в наушниках.
 
 > [!IMPORTANT]
-> The game must be in **Windowed Fullscreen / Borderless** mode. In Exclusive Fullscreen, no overlay can show — that's a Windows DirectX limitation, not a sound_dir one. Most pros play in Borderless anyway because it's the only way to use Discord, OBS, or quick alt-tab.
+> Игра должна быть в оконном полноэкранном режиме (Borderless). В
+> эксклюзивном полноэкранном не работает ни один оверлей, это ограничение
+> Windows, а не программы.
 
-## Install
+## Установка
 
-### Pre-built binary
-
-A release binary will appear in [Releases](../../releases) once the project stabilizes. For now: build from source.
-
-### Build from source
-
-You need [Rust](https://rustup.rs/) installed (1.75 or newer recommended). Then:
+Готовой сборки пока нет, собирается из исходников. Нужен
+[Rust](https://rustup.rs/) 1.75 или новее.
 
 ```bash
 git clone https://github.com/Japour/sound_dir
@@ -60,88 +89,75 @@ cd sound_dir
 cargo build --release
 ```
 
-The binary will be at `target/release/sound_dir.exe` (Windows) or `target/release/sound_dir` (other platforms).
+Готовый файл появится в `target/release/sound_dir.exe`.
 
-### Platform support
+Проверялось только на Windows 10 и 11, это основная платформа.
 
-| OS | Status | Notes |
-|---|---|---|
-| Windows 10/11 | ✅ Tested | Primary target |
+## Как пользоваться
 
-Currently I only develop and test on Windows. Help porting to macOS / Linux is welcome.
+1. Запустить `sound_dir.exe`
+2. В трее возле часов появится иконка. В Windows 11 она может прятаться за
+   стрелкой `^`, ее стоит вытащить наружу
+3. Полоска появится сверху по центру экрана
+4. Правый клик по иконке в трее открывает меню: режим правки, сброс
+   настроек, выход
 
-## Usage
+В режиме правки полоску можно двигать мышью, тянуть за угол для изменения
+размера, а снизу открывается панель с ползунками. Кнопка «save & lock»
+выходит из режима и сохраняет настройки в
+`%APPDATA%/sound_dir/settings.json`.
 
-1. Run `sound_dir.exe`. A desktop shortcut helps.
-2. A small icon appears in the system tray (bottom-right corner near the clock). On Windows 11 it may be hidden behind the `^` arrow — drag it out into the always-visible area.
-3. The compass strip appears at the top center of your screen, ready to react to sound.
-4. **Right-click the tray icon** for the menu:
-   - **Edit position** — enter edit mode
-   - **Reset to defaults** — bring back default position / size
-   - **Quit** — close cleanly
+## Стек
 
-### Edit mode
+Rust, [`cpal`](https://crates.io/crates/cpal) для захвата звука,
+[`realfft`](https://crates.io/crates/realfft) для преобразования Фурье,
+[`eframe`](https://crates.io/crates/eframe) (egui и wgpu) для прозрачного
+окна поверх игры, [`tray-icon`](https://crates.io/crates/tray-icon) для
+трея, `serde` для настроек.
 
-In edit mode the strip becomes interactive:
+## Про авторство
 
-- **Drag the strip** anywhere — moves it
-- **Drag the corner handle** (bottom-right) — resizes width and height
-- A **settings panel** appears below with:
-  - Width / height sliders
-  - Opacity slider
-  - Ball size slider
-  - Response speed slider (0 % = smooth and slow, 100 % = instant)
-  - Per-band visibility checkboxes (hide ROAR if it bothers you)
-- **Save & lock** exits edit mode and persists settings
+Код на Rust писал не я. Rust я не знаю, весь код здесь написан с
+ИИ-инструментами.
 
-Settings are saved automatically to `%APPDATA%/sound_dir/settings.json`.
+Мое в этом проекте другое: сама задача, выбор подхода и решения по
+устройству. Что звук надо брать с системного вывода, а не из игры, иначе
+это чит и бан. Что оверлей должен быть отдельным прозрачным окном без
+вмешательства в процесс игры, отсюда и требование Borderless. Что
+направление надо считать не по общей громкости, а отдельно по частотам с
+подавлением постоянного фона, иначе гул мотора перебьет выстрел. Что полос
+должно быть четыре и именно с такими границами, потому что это разные типы
+звуков в игре.
 
-## Tech stack
+Настраивал и проверял тоже я: пороги, скорость реакции, границы полос и то,
+насколько это вообще читается боковым зрением в бою.
 
-- **[Rust](https://www.rust-lang.org/)** — fast, safe, and a single binary
-- **[`cpal`](https://crates.io/crates/cpal)** — cross-platform audio capture (WASAPI loopback on Windows)
-- **[`realfft`](https://crates.io/crates/realfft)** — fast real-input FFT
-- **[`eframe`](https://crates.io/crates/eframe)** (egui + wgpu) — transparent overlay with mouse passthrough
-- **[`tray-icon`](https://crates.io/crates/tray-icon)** — system tray
-- **[`serde`](https://crates.io/crates/serde) / [`serde_json`](https://crates.io/crates/serde_json)** — settings persistence
+## Планы
 
-## Roadmap
+- [ ] детекция резких событий, чтобы точки вспыхивали, а не двигались непрерывно
+- [ ] несколько источников звука одновременно
+- [ ] классификация звуков небольшой моделью (шаги, выстрел, техника, взрыв)
+- [ ] профили под разные игры
+- [ ] выбор конкретного аудиоустройства, сейчас берется вывод по умолчанию
+- [ ] различение спереди и сзади, сложно, нужна работа с HRTF
+- [ ] сборка под macOS и Linux
 
-Things I want to add when I have time. PRs welcome.
+## Лицензия
 
-- [ ] **Onset detection** — make balls flash discretely on transients instead of being continuous
-- [ ] **Hotkeys** — global shortcuts for edit mode and visibility toggle
-- [ ] **Multi-source DOA** — detect multiple simultaneous directional sources
-- [ ] **Sound classification** — small ML model (YAMNet?) to label sounds (footstep / gunshot / vehicle / explosion)
-- [ ] **Per-game profiles** — quick-switch presets (PUBG / CSGO / Fortnite / Music)
-- [ ] **Phase-based localization** for low frequencies
-- [ ] **Real backdrop blur** via DWM Acrylic on Windows 11
-- [ ] **macOS / Linux** — proper documentation and testing
-- [ ] **Custom audio device selection** — currently uses default output
-- [ ] **Front / back differentiation** (only possible with HRTF inversion — hard)
+[MIT](LICENSE). Берите, меняйте, используйте.
 
-## Contributing
+## Источники и вдохновение
 
-If you're a deaf or hard-of-hearing gamer who'd find this useful, a DSP enthusiast who wants to improve the math, or a Rust dev who wants to clean up the code — pull requests, issues, ideas all welcome. This started as a personal accessibility tool that worked well enough to share. I'd love to see it grow with the community.
-
-When opening a PR:
-
-1. Run `cargo fmt`
-2. Make sure `cargo clippy --release` is clean
-3. If you change the math (PCEN, direction estimation, smoothing), document the change in ARCHITECTURE.md
-
-## License
-
-[MIT](LICENSE). Use it, fork it, modify it, ship it. I just want deaf gamers to have a fair shot.
-
-## Acknowledgments
-
-- [Audio Radar](https://audioradar.com/) — commercial hardware product for deaf gamers, proof that the idea works
-- [Fortnite Sound Visualizer](https://accessibility-labs.com/feature-highlight-fortnites-sound-visualizer/) — proof that visual sound indication is real accessibility, not a gimmick
-- **Wang et al. (2017)**, [*Trainable Frontend For Robust and Far-Field Keyword Spotting*](https://arxiv.org/abs/1607.05666) — the PCEN paper that powers the "ignore the engine, hear the gunshot" magic
-- The Rust audio community for [`cpal`](https://github.com/RustAudio/cpal) and [`realfft`](https://github.com/HEnquist/realfft)
-- The [egui](https://github.com/emilk/egui) project for making transparent overlays approachable
+- [Audio Radar](https://audioradar.com/) - коммерческое железо для глухих
+  игроков, доказательство, что идея рабочая
+- [Sound Visualizer в Fortnite](https://accessibility-labs.com/feature-highlight-fortnites-sound-visualizer/)
+  - визуализация звука как штатная функция доступности
+- Wang et al., 2017,
+  [*Trainable Frontend For Robust and Far-Field Keyword Spotting*](https://arxiv.org/abs/1607.05666)
+  - статья про PCEN, на котором держится «не слышать мотор, но слышать
+  выстрел»
 
 ---
 
-Built by a deaf gamer for deaf gamers. If this helps you, open an issue and tell me — it'll make my day.
+Если у вас похожая ситуация со слухом и эта штука пригодилась, напишите в
+issues.
